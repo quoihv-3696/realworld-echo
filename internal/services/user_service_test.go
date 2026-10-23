@@ -77,6 +77,18 @@ func (f *fakeUserRepo) FindByEmail(_ context.Context, email string) (*models.Use
 	return nil, repository.ErrNotFound
 }
 
+func (f *fakeUserRepo) FindByUsername(_ context.Context, username string) (*models.User, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	for _, u := range f.users {
+		if u.Username == username {
+			return &u, nil
+		}
+	}
+	return nil, repository.ErrNotFound
+}
+
 func (f *fakeUserRepo) Update(_ context.Context, u *models.User) error {
 	if f.err != nil {
 		return f.err

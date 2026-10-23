@@ -15,6 +15,7 @@ type UserRepository interface {
 	FindByID(ctx context.Context, id uint) (*models.User, error)
 	FindByEmail(ctx context.Context, email string) (*models.User, error)
 	Update(ctx context.Context, u *models.User) error
+	FindByUsername(ctx context.Context, username string) (*models.User, error)
 }
 
 type userRepository struct {
@@ -59,14 +60,22 @@ func (r *userRepository) Update(ctx context.Context, u *models.User) error {
 }
 
 func translateUserError(err error) error {
+	return translateDuplicate(err, userUniqueIndexes)
+}
+
+func translateDuplicate(err error, indexes map[string]string) error {
 	if !errors.Is(err, gorm.ErrDuplicatedKey) {
 		return err
 	}
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) {
-		if field, ok := userUniqueIndexes[pgErr.ConstraintName]; ok {
+		if field, ok := indexes[pgErr.ConstraintName]; ok {
 			return &DuplicateError{Field: field}
 		}
 	}
 	return err
+}
+
+func (r *userRepository) FindByUsername(ctx context.Context, username string) (*models.User, error) {
+	return r.findOne(ctx, "username = ?", username)
 }

@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"github.com/quoihv-3696/realworld-echo/internal/models"
 )
@@ -17,6 +18,9 @@ type ArticleFilter struct {
 type ArticleRepository interface {
 	List(ctx context.Context, f ArticleFilter) ([]models.Article, int64, error)
 	FindBySlug(ctx context.Context, slug string) (*models.Article, error)
+	Create(ctx context.Context, a *models.Article, tagNames []string) error
+	Update(ctx context.Context, a *models.Article, tagNames *[]string) error
+	Delete(ctx context.Context, id uint) error
 }
 
 type articleRepository struct {
@@ -62,4 +66,62 @@ func (r *articleRepository) FindBySlug(ctx context.Context, slug string) (*model
 		return nil, err
 	}
 	return &article, nil
+}
+
+var articleUniqueIndexes = map[string]string{
+	"idx_articles_slug": "slug",
+}
+
+func (r *articleRepository) Create(ctx context.Context, a *models.Article, tagNames []string) error {
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		tags, err := upsertTags(tx, tagNames)
+		if err != nil {
+			return err
+		}
+		a.Tags = tags
+		return tx.Omit("Author", "Tags.*").Create(a).Error
+	})
+	return translateDuplicate(err, articleUniqueIndexes)
+}
+
+func (r *articleRepository) Update(ctx context.Context, a *models.Article, tagNames *[]string) error {
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Omit(clause.Associations).Save(a).Error; err != nil {
+			return err
+		}
+		if tagNames == nil {
+			return nil
+		}
+		tags, err := upsertTags(tx, *tagNames)
+		if err != nil {
+			return err
+		}
+		a.Tags = tags
+		return tx.Model(a).Association("Tags").Replace(tags)
+	})
+	return translateDuplicate(err, articleUniqueIndexes)
+}
+
+func (r *articleRepository) Delete(ctx context.Context, id uint) error {
+	return r.db.WithContext(ctx).Delete(&models.Article{}, id).Error
+}
+
+func upsertTags(tx *gorm.DB, names []string) ([]models.Tag, error) {
+	tags := make([]models.Tag, 0, len(names))
+	if len(names) == 0 {
+		return tags, nil
+	}
+	for _, n := range names {
+		tags = append(tags, models.Tag{Name: n})
+	}
+
+	if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&tags).Error; err != nil {
+		return nil, err
+	}
+
+	var out []models.Tag
+	if err := tx.Where("name IN ?", names).Find(&out).Error; err != nil {
+		return nil, err
+	}
+	return out, nil
 }

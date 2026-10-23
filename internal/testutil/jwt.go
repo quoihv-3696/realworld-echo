@@ -17,3 +17,12 @@ func JWT(t *testing.T) *auth.JWT {
 	}
 	return j
 }
+
+func Token(t *testing.T, userID uint) string {
+	t.Helper()
+	token, err := JWT(t).Sign(userID)
+	if err != nil {
+		t.Fatalf("ký token: %v", err)
+	}
+	return token
+}

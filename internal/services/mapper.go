@@ -49,3 +49,13 @@ func toUser(u models.User, token string) dto.User {
 		Image:    u.Image,
 	}
 }
+
+func toComment(c models.Comment) dto.Comment {
+	return dto.Comment{
+		ID:        c.ID,
+		CreatedAt: c.CreatedAt.UTC(),
+		UpdatedAt: c.UpdatedAt.UTC(),
+		Body:      c.Body,
+		Author:    toProfile(c.Author),
+	}
+}

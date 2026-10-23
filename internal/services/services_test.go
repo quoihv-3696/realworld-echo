@@ -22,10 +22,16 @@ type fakeTagRepo struct {
 func (f fakeTagRepo) ListNames(context.Context) ([]string, error) { return f.names, f.err }
 
 type fakeArticleRepo struct {
-	articles  []models.Article
-	total     int64
-	err       error
-	gotFilter repository.ArticleFilter
+	articles      []models.Article
+	total         int64
+	err           error
+	gotFilter     repository.ArticleFilter
+	authors       map[uint]models.User
+	nextID        uint
+	createErrs    []error
+	gotCreateTags []string
+	gotUpdateTags *[]string
+	deleted       []uint
 }
 
 func (f *fakeArticleRepo) List(_ context.Context, filter repository.ArticleFilter) ([]models.Article, int64, error) {
@@ -36,6 +42,9 @@ func (f *fakeArticleRepo) List(_ context.Context, filter repository.ArticleFilte
 func (f *fakeArticleRepo) FindBySlug(_ context.Context, slug string) (*models.Article, error) {
 	for _, a := range f.articles {
 		if a.Slug == slug {
+			if u, ok := f.authors[a.AuthorID]; ok {
+				a.Author = u
+			}
 			return &a, nil
 		}
 	}
@@ -43,6 +52,67 @@ func (f *fakeArticleRepo) FindBySlug(_ context.Context, slug string) (*models.Ar
 		return nil, f.err
 	}
 	return nil, repository.ErrNotFound
+}
+
+func (f *fakeArticleRepo) Create(_ context.Context, a *models.Article, tagNames []string) error {
+	f.gotCreateTags = tagNames
+	if len(f.createErrs) > 0 {
+		err := f.createErrs[0]
+		f.createErrs = f.createErrs[1:]
+		if err != nil {
+			return err
+		}
+	}
+	if f.err != nil {
+		return f.err
+	}
+	for _, other := range f.articles {
+		if other.Slug == a.Slug {
+			return &repository.DuplicateError{Field: "slug"}
+		}
+	}
+	f.nextID++
+	a.ID = f.nextID
+	a.Tags = nil
+	for _, n := range tagNames {
+		a.Tags = append(a.Tags, models.Tag{Name: n})
+	}
+	f.articles = append(f.articles, *a)
+	return nil
+}
+
+func (f *fakeArticleRepo) Update(_ context.Context, a *models.Article, tagNames *[]string) error {
+	f.gotUpdateTags = tagNames
+	if f.err != nil {
+		return f.err
+	}
+	for i := range f.articles {
+		if f.articles[i].ID == a.ID {
+			if tagNames != nil {
+				a.Tags = nil
+				for _, n := range *tagNames {
+					a.Tags = append(a.Tags, models.Tag{Name: n})
+				}
+			}
+			f.articles[i] = *a
+			return nil
+		}
+	}
+	return repository.ErrNotFound
+}
+
+func (f *fakeArticleRepo) Delete(_ context.Context, id uint) error {
+	if f.err != nil {
+		return f.err
+	}
+	f.deleted = append(f.deleted, id)
+	for i := range f.articles {
+		if f.articles[i].ID == id {
+			f.articles = append(f.articles[:i], f.articles[i+1:]...)
+			return nil
+		}
+	}
+	return nil
 }
 
 var hcm = time.FixedZone("ICT", 7*3600)

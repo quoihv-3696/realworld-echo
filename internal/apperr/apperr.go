@@ -57,3 +57,7 @@ func TooShort(field string, min int) *Error {
 func TooLong(field string, max int) *Error {
 	return New(http.StatusUnprocessableEntity, field, fmt.Sprintf("is too long (maximum is %d characters)", max))
 }
+
+func NotNull(field string) *Error {
+	return New(http.StatusUnprocessableEntity, field, "can't be null")
+}

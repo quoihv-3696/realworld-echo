@@ -6,3 +6,7 @@ type Profile struct {
 	Image     *string `json:"image"`
 	Following bool    `json:"following"`
 }
+
+type ProfileResponse struct {
+	Profile Profile `json:"profile"`
+}

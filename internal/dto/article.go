@@ -27,3 +27,25 @@ type MultipleArticlesResponse struct {
 	Articles      []ArticleListItem `json:"articles"`
 	ArticlesCount int64             `json:"articlesCount"`
 }
+
+type NewArticle struct {
+	Title       string   `json:"title"`
+	Description string   `json:"description"`
+	Body        string   `json:"body"`
+	TagList     []string `json:"tagList"`
+}
+
+type CreateArticleRequest struct {
+	Article NewArticle `json:"article"`
+}
+
+type UpdateArticle struct {
+	Title       Optional[string]   `json:"title"`
+	Description Optional[string]   `json:"description"`
+	Body        Optional[string]   `json:"body"`
+	TagList     Optional[[]string] `json:"tagList"`
+}
+
+type UpdateArticleRequest struct {
+	Article UpdateArticle `json:"article"`
+}

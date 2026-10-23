@@ -59,3 +59,12 @@ func CreateUserWithPassword(t *testing.T, db *gorm.DB, username, password string
 }
 
 func StrPtr(s string) *string { return &s }
+
+func CreateComment(t *testing.T, db *gorm.DB, article models.Article, author models.User, body string) models.Comment {
+	t.Helper()
+	c := models.Comment{Body: body, ArticleID: article.ID, AuthorID: author.ID}
+	if err := db.Create(&c).Error; err != nil {
+		t.Fatalf("tạo comment: %v", err)
+	}
+	return c
+}
