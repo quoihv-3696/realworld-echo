@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 
 	"github.com/quoihv-3696/realworld-echo/internal/models"
@@ -42,6 +43,19 @@ func CreateArticle(t *testing.T, db *gorm.DB, author models.User, slug string, c
 		t.Fatalf("tạo article %s: %v", slug, err)
 	}
 	return a
+}
+
+func CreateUserWithPassword(t *testing.T, db *gorm.DB, username, password string) models.User {
+	t.Helper()
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.MinCost)
+	if err != nil {
+		t.Fatal(err)
+	}
+	u := models.User{Username: username, Email: username + "@test.local", Password: string(hash)}
+	if err := db.Create(&u).Error; err != nil {
+		t.Fatalf("tạo user %s: %v", username, err)
+	}
+	return u
 }
 
 func StrPtr(s string) *string { return &s }

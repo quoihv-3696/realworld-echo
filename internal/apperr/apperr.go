@@ -45,3 +45,15 @@ func TokenMissing() *Error {
 func InvalidCredentials() *Error {
 	return New(http.StatusUnauthorized, "credentials", "invalid")
 }
+
+func TokenInvalid() *Error {
+	return New(http.StatusUnauthorized, "token", "is invalid")
+}
+
+func TooShort(field string, min int) *Error {
+	return New(http.StatusUnprocessableEntity, field, fmt.Sprintf("is too short (minimum is %d characters)", min))
+}
+
+func TooLong(field string, max int) *Error {
+	return New(http.StatusUnprocessableEntity, field, fmt.Sprintf("is too long (maximum is %d characters)", max))
+}

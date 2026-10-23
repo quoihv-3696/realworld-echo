@@ -11,6 +11,7 @@ import (
 	"github.com/labstack/echo/v5"
 	"gorm.io/gorm/logger"
 
+	"github.com/quoihv-3696/realworld-echo/internal/auth"
 	"github.com/quoihv-3696/realworld-echo/internal/database"
 	"github.com/quoihv-3696/realworld-echo/internal/server"
 )
@@ -18,6 +19,7 @@ import (
 func main() {
 	dsn := getenv("DATABASE_URL", "postgres://realworld:realworld@localhost:5433/realworld?sslmode=disable")
 	port := getenv("PORT", "8080")
+	jwtSecret := getenv("JWT_SECRET", "dev-only-secret-change-me-32-bytes-min")
 
 	db, err := database.Open(dsn, logger.Info)
 	if err != nil {
@@ -34,7 +36,12 @@ func main() {
 		log.Printf("đã thêm dữ liệu mẫu (mật khẩu mọi user: %s)", database.SeedPassword)
 	}
 
-	e := server.New(db)
+	jwt, err := auth.NewJWT(jwtSecret, auth.DefaultTokenTTL)
+	if err != nil {
+		log.Fatalf("JWT_SECRET: %v", err)
+	}
+
+	e := server.New(db, jwt)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()

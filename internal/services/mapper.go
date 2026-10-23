@@ -39,3 +39,13 @@ func toArticleListItem(a models.Article) dto.ArticleListItem {
 func toArticle(a models.Article) dto.Article {
 	return dto.Article{ArticleListItem: toArticleListItem(a), Body: a.Body}
 }
+
+func toUser(u models.User, token string) dto.User {
+	return dto.User{
+		Email:    u.Email,
+		Token:    token,
+		Username: u.Username,
+		Bio:      u.Bio,
+		Image:    u.Image,
+	}
+}
