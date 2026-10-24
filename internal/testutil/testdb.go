@@ -58,7 +58,7 @@ func DB(t *testing.T) *gorm.DB {
 	if err := database.Migrate(db); err != nil {
 		t.Fatalf("migrate DB test: %v", err)
 	}
-	if err := db.Exec("TRUNCATE users, tags, articles, article_tags, comments, follows RESTART IDENTITY CASCADE").Error; err != nil {
+	if err := db.Exec("TRUNCATE users, tags, articles, article_tags, comments, follows, favorites RESTART IDENTITY CASCADE").Error; err != nil {
 		t.Fatalf("dọn DB test: %v", err)
 	}
 	return db

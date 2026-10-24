@@ -15,12 +15,13 @@ import (
 const DefaultLimit = 20
 
 type ArticleService struct {
-	repo    repository.ArticleRepository
-	follows repository.FollowRepository
+	repo      repository.ArticleRepository
+	follows   repository.FollowRepository
+	favorites repository.FavoriteRepository
 }
 
-func NewArticleService(repo repository.ArticleRepository, follows repository.FollowRepository) *ArticleService {
-	return &ArticleService{repo: repo, follows: follows}
+func NewArticleService(repo repository.ArticleRepository, follows repository.FollowRepository, favorites repository.FavoriteRepository) *ArticleService {
+	return &ArticleService{repo: repo, follows: follows, favorites: favorites}
 }
 
 func (s *ArticleService) List(ctx context.Context, viewerID uint, q ArticleQuery) (dto.MultipleArticlesResponse, error) {
@@ -28,7 +29,7 @@ func (s *ArticleService) List(ctx context.Context, viewerID uint, q ArticleQuery
 		return dto.MultipleArticlesResponse{}, err
 	}
 	return s.listArticles(ctx, viewerID, repository.ArticleFilter{
-		Tag: q.Tag, Author: q.Author, Limit: q.Limit, Offset: q.Offset,
+		Tag: q.Tag, Author: q.Author, FavoritedBy: q.Favorited, Limit: q.Limit, Offset: q.Offset,
 	})
 }
 
@@ -37,13 +38,17 @@ func (s *ArticleService) Get(ctx context.Context, viewerID uint, slug string) (d
 	if err != nil {
 		return dto.SingleArticleResponse{}, err
 	}
-	following, err := followingAmong(ctx, s.follows, viewerID, []uint{a.AuthorID})
+	return s.single(ctx, viewerID, a)
+}
+
+func (s *ArticleService) single(ctx context.Context, viewerID uint, a *models.Article) (dto.SingleArticleResponse, error) {
+	x, err := s.loadExtras(ctx, viewerID, []models.Article{*a})
 	if err != nil {
 		return dto.SingleArticleResponse{}, err
 	}
-	res := dto.SingleArticleResponse{Article: toArticle(*a)}
-	res.Article.Author.Following = following[a.AuthorID]
-	return res, nil
+	art := toArticle(*a)
+	x.fill(&art.ArticleListItem, *a)
+	return dto.SingleArticleResponse{Article: art}, nil
 }
 
 const maxSlugAttempts = 3
@@ -174,18 +179,14 @@ func (s *ArticleService) listArticles(ctx context.Context, viewerID uint, f repo
 	if err != nil {
 		return dto.MultipleArticlesResponse{}, err
 	}
-	authorIDs := make([]uint, 0, len(articles))
-	for _, a := range articles {
-		authorIDs = append(authorIDs, a.AuthorID)
-	}
-	following, err := followingAmong(ctx, s.follows, viewerID, authorIDs)
+	x, err := s.loadExtras(ctx, viewerID, articles)
 	if err != nil {
 		return dto.MultipleArticlesResponse{}, err
 	}
 	items := make([]dto.ArticleListItem, 0, len(articles))
 	for _, a := range articles {
 		item := toArticleListItem(a)
-		item.Author.Following = following[a.AuthorID]
+		x.fill(&item, a)
 		items = append(items, item)
 	}
 	return dto.MultipleArticlesResponse{Articles: items, ArticlesCount: total}, nil
@@ -193,4 +194,26 @@ func (s *ArticleService) listArticles(ctx context.Context, viewerID uint, f repo
 
 func (s *ArticleService) Owned(ctx context.Context, viewerID uint, articleSlug string) (*models.Article, error) {
 	return findOwnArticle(ctx, s.repo, viewerID, articleSlug)
+}
+
+func (s *ArticleService) Favorite(ctx context.Context, viewerID uint, articleSlug string) (dto.SingleArticleResponse, error) {
+	a, err := findArticle(ctx, s.repo, articleSlug)
+	if err != nil {
+		return dto.SingleArticleResponse{}, err
+	}
+	if err := s.favorites.Favorite(ctx, viewerID, a.ID); err != nil {
+		return dto.SingleArticleResponse{}, err
+	}
+	return s.single(ctx, viewerID, a)
+}
+
+func (s *ArticleService) Unfavorite(ctx context.Context, viewerID uint, articleSlug string) (dto.SingleArticleResponse, error) {
+	a, err := findArticle(ctx, s.repo, articleSlug)
+	if err != nil {
+		return dto.SingleArticleResponse{}, err
+	}
+	if err := s.favorites.Unfavorite(ctx, viewerID, a.ID); err != nil {
+		return dto.SingleArticleResponse{}, err
+	}
+	return s.single(ctx, viewerID, a)
 }

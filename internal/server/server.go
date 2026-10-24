@@ -21,9 +21,10 @@ func New(db *gorm.DB, jwt *auth.JWT) *echo.Echo {
 	articleRepo := repository.NewArticleRepository(db)
 	commentRepo := repository.NewCommentRepository(db)
 	followRepo := repository.NewFollowRepository(db)
+	favoriteRepo := repository.NewFavoriteRepository(db)
 
 	tags := handlers.NewTagHandler(services.NewTagService(repository.NewTagRepository(db)))
-	articles := handlers.NewArticleHandler(services.NewArticleService(articleRepo, followRepo))
+	articles := handlers.NewArticleHandler(services.NewArticleService(articleRepo, followRepo, favoriteRepo))
 	comments := handlers.NewCommentHandler(services.NewCommentService(articleRepo, commentRepo, followRepo))
 	users := handlers.NewUserHandler(services.NewUserService(userRepo, jwt))
 	profiles := handlers.NewProfileHandler(services.NewProfileService(userRepo, followRepo))
@@ -37,6 +38,8 @@ func New(db *gorm.DB, jwt *auth.JWT) *echo.Echo {
 	api.GET("/articles/:slug", articles.Get, jwt.Optional())
 	api.PUT("/articles/:slug", articles.Update, jwt.Required(), articles.RequireOwner)
 	api.DELETE("/articles/:slug", articles.Delete, jwt.Required(), articles.RequireOwner)
+	api.POST("/articles/:slug/favorite", articles.Favorite, jwt.Required())
+	api.DELETE("/articles/:slug/favorite", articles.Unfavorite, jwt.Required())
 
 	api.GET("/articles/:slug/comments", comments.List, jwt.Optional())
 	api.POST("/articles/:slug/comments", comments.Create, jwt.Required())

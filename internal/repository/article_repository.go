@@ -11,11 +11,12 @@ import (
 )
 
 type ArticleFilter struct {
-	Limit      int
-	Offset     int
-	Tag        string
-	Author     string
-	FollowedBy uint
+	Limit       int
+	Offset      int
+	Tag         string
+	Author      string
+	FavoritedBy string
+	FollowedBy  uint
 }
 
 type ArticleRepository interface {
@@ -142,6 +143,12 @@ func (r *articleRepository) filter(f ArticleFilter) func(*gorm.DB) *gorm.DB {
 			db = db.Where("articles.author_id IN (?)", r.db.Model(&models.User{}).
 				Select("id").
 				Where("username = ?", f.Author))
+		}
+		if f.FavoritedBy != "" {
+			db = db.Where("articles.id IN (?)", r.db.Model(&models.Favorite{}).
+				Select("favorites.article_id").
+				Joins("JOIN users ON users.id = favorites.user_id").
+				Where("users.username = ?", f.FavoritedBy))
 		}
 		if f.FollowedBy != 0 {
 			db = db.Where("articles.author_id IN (?)", r.db.Model(&models.Follow{}).

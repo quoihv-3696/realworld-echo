@@ -111,9 +111,34 @@ func articleQuery(c *echo.Context) (services.ArticleQuery, error) {
 		return services.ArticleQuery{}, err
 	}
 	return services.ArticleQuery{
-		Tag:    c.QueryParam("tag"),
-		Author: c.QueryParam("author"),
-		Limit:  limit,
-		Offset: offset,
+		Tag:       c.QueryParam("tag"),
+		Author:    c.QueryParam("author"),
+		Favorited: c.QueryParam("favorited"),
+		Limit:     limit,
+		Offset:    offset,
 	}, nil
+}
+
+func (h *ArticleHandler) Favorite(c *echo.Context) error {
+	viewerID, ok := auth.UserID(c)
+	if !ok {
+		return apperr.TokenMissing()
+	}
+	res, err := h.svc.Favorite(c.Request().Context(), viewerID, c.Param("slug"))
+	if err != nil {
+		return err
+	}
+	return c.JSON(http.StatusOK, res)
+}
+
+func (h *ArticleHandler) Unfavorite(c *echo.Context) error {
+	viewerID, ok := auth.UserID(c)
+	if !ok {
+		return apperr.TokenMissing()
+	}
+	res, err := h.svc.Unfavorite(c.Request().Context(), viewerID, c.Param("slug"))
+	if err != nil {
+		return err
+	}
+	return c.JSON(http.StatusOK, res)
 }

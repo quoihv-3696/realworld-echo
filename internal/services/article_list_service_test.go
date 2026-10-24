@@ -33,7 +33,7 @@ func minhFollowsJake() *fakeFollowRepo {
 
 func TestArticleService_ListPassesFilter(t *testing.T) {
 	repo := &fakeArticleRepo{}
-	svc := services.NewArticleService(repo, &fakeFollowRepo{})
+	svc := services.NewArticleService(repo, &fakeFollowRepo{}, &fakeFavoriteRepo{})
 	if _, err := svc.List(context.Background(), 0, services.ArticleQuery{Tag: "go", Author: "jake", Limit: 5, Offset: 10}); err != nil {
 		t.Fatalf("List: %v", err)
 	}
@@ -44,7 +44,7 @@ func TestArticleService_ListPassesFilter(t *testing.T) {
 }
 
 func TestArticleService_ListValidatesPage(t *testing.T) {
-	svc := services.NewArticleService(&fakeArticleRepo{}, &fakeFollowRepo{})
+	svc := services.NewArticleService(&fakeArticleRepo{}, &fakeFollowRepo{}, &fakeFavoriteRepo{})
 	cases := []struct {
 		q          services.ArticleQuery
 		field, msg string
@@ -66,7 +66,7 @@ func TestArticleService_ListValidatesPage(t *testing.T) {
 
 func TestArticleService_ListFollowingForViewer(t *testing.T) {
 	follows := minhFollowsJake()
-	res, err := services.NewArticleService(twoAuthorRepo(), follows).List(context.Background(), minhID, services.ArticleQuery{Limit: 20})
+	res, err := services.NewArticleService(twoAuthorRepo(), follows, &fakeFavoriteRepo{}).List(context.Background(), minhID, services.ArticleQuery{Limit: 20})
 	if err != nil {
 		t.Fatalf("List: %v", err)
 	}
@@ -84,7 +84,7 @@ func TestArticleService_ListFollowingForViewer(t *testing.T) {
 
 func TestArticleService_ListGuestSkipsFollowQuery(t *testing.T) {
 	follows := minhFollowsJake()
-	res, err := services.NewArticleService(twoAuthorRepo(), follows).List(context.Background(), 0, services.ArticleQuery{Limit: 20})
+	res, err := services.NewArticleService(twoAuthorRepo(), follows, &fakeFavoriteRepo{}).List(context.Background(), 0, services.ArticleQuery{Limit: 20})
 	if err != nil {
 		t.Fatalf("List: %v", err)
 	}
@@ -100,7 +100,7 @@ func TestArticleService_ListGuestSkipsFollowQuery(t *testing.T) {
 
 func TestArticleService_Feed(t *testing.T) {
 	repo := twoAuthorRepo()
-	res, err := services.NewArticleService(repo, minhFollowsJake()).Feed(context.Background(), minhID, services.ArticleQuery{Tag: "bo-qua", Author: "bo-qua", Limit: 20, Offset: 0})
+	res, err := services.NewArticleService(repo, minhFollowsJake(), &fakeFavoriteRepo{}).Feed(context.Background(), minhID, services.ArticleQuery{Tag: "bo-qua", Author: "bo-qua", Limit: 20, Offset: 0})
 	if err != nil {
 		t.Fatalf("Feed: %v", err)
 	}
@@ -115,7 +115,7 @@ func TestArticleService_Feed(t *testing.T) {
 
 func TestArticleService_GetFollowing(t *testing.T) {
 	repo := twoAuthorRepo()
-	svc := services.NewArticleService(repo, minhFollowsJake())
+	svc := services.NewArticleService(repo, minhFollowsJake(), &fakeFavoriteRepo{})
 	res, err := svc.Get(context.Background(), minhID, "cua-jake")
 	if err != nil {
 		t.Fatalf("Get: %v", err)
@@ -131,7 +131,7 @@ func TestArticleService_GetFollowing(t *testing.T) {
 
 func TestArticleService_ListPassesFollowErrors(t *testing.T) {
 	boom := errors.New("db down")
-	_, err := services.NewArticleService(twoAuthorRepo(), &fakeFollowRepo{err: boom}).List(context.Background(), minhID, services.ArticleQuery{Limit: 20})
+	_, err := services.NewArticleService(twoAuthorRepo(), &fakeFollowRepo{err: boom}, &fakeFavoriteRepo{}).List(context.Background(), minhID, services.ArticleQuery{Limit: 20})
 	if !errors.Is(err, boom) {
 		t.Errorf("err = %v, muốn trả nguyên lỗi của FollowRepository", err)
 	}

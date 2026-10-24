@@ -75,3 +75,10 @@ func CreateFollow(t *testing.T, db *gorm.DB, follower, following models.User) {
 		t.Fatalf("tạo follow: %v", err)
 	}
 }
+
+func CreateFavorite(t *testing.T, db *gorm.DB, user models.User, article models.Article) {
+	t.Helper()
+	if err := db.Create(&models.Favorite{UserID: user.ID, ArticleID: article.ID}).Error; err != nil {
+		t.Fatalf("tạo favorite: %v", err)
+	}
+}
