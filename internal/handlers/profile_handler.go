@@ -5,6 +5,8 @@ import (
 
 	"github.com/labstack/echo/v5"
 
+	"github.com/quoihv-3696/realworld-echo/internal/apperr"
+	"github.com/quoihv-3696/realworld-echo/internal/auth"
 	"github.com/quoihv-3696/realworld-echo/internal/services"
 )
 
@@ -17,7 +19,32 @@ func NewProfileHandler(svc *services.ProfileService) *ProfileHandler {
 }
 
 func (h *ProfileHandler) Get(c *echo.Context) error {
-	res, err := h.svc.Get(c.Request().Context(), c.Param("username"))
+	viewerID, _ := auth.UserID(c)
+	res, err := h.svc.Get(c.Request().Context(), viewerID, c.Param("username"))
+	if err != nil {
+		return err
+	}
+	return c.JSON(http.StatusOK, res)
+}
+
+func (h *ProfileHandler) Follow(c *echo.Context) error {
+	viewerID, ok := auth.UserID(c)
+	if !ok {
+		return apperr.TokenMissing()
+	}
+	res, err := h.svc.Follow(c.Request().Context(), viewerID, c.Param("username"))
+	if err != nil {
+		return err
+	}
+	return c.JSON(http.StatusOK, res)
+}
+
+func (h *ProfileHandler) Unfollow(c *echo.Context) error {
+	viewerID, ok := auth.UserID(c)
+	if !ok {
+		return apperr.TokenMissing()
+	}
+	res, err := h.svc.Unfollow(c.Request().Context(), viewerID, c.Param("username"))
 	if err != nil {
 		return err
 	}

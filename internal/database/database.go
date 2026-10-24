@@ -16,5 +16,5 @@ func Open(dsn string, logLevel logger.LogLevel) (*gorm.DB, error) {
 }
 
 func Migrate(db *gorm.DB) error {
-	return db.AutoMigrate(&models.User{}, &models.Tag{}, &models.Article{}, &models.Comment{})
+	return db.AutoMigrate(&models.User{}, &models.Tag{}, &models.Article{}, &models.Comment{}, &models.Follow{})
 }

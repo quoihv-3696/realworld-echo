@@ -115,6 +115,57 @@ func (f *fakeArticleRepo) Delete(_ context.Context, id uint) error {
 	return nil
 }
 
+type fakeFollowRepo struct {
+	pairs      map[[2]uint]bool
+	err        error
+	amongCalls int
+}
+
+func (f *fakeFollowRepo) ensure() {
+	if f.pairs == nil {
+		f.pairs = map[[2]uint]bool{}
+	}
+}
+
+func (f *fakeFollowRepo) Follow(_ context.Context, followerID, followingID uint) error {
+	if f.err != nil {
+		return f.err
+	}
+	f.ensure()
+	f.pairs[[2]uint{followerID, followingID}] = true
+	return nil
+}
+
+func (f *fakeFollowRepo) Unfollow(_ context.Context, followerID, followingID uint) error {
+	if f.err != nil {
+		return f.err
+	}
+	f.ensure()
+	delete(f.pairs, [2]uint{followerID, followingID})
+	return nil
+}
+
+func (f *fakeFollowRepo) IsFollowing(_ context.Context, followerID, followingID uint) (bool, error) {
+	if f.err != nil {
+		return false, f.err
+	}
+	return f.pairs[[2]uint{followerID, followingID}], nil
+}
+
+func (f *fakeFollowRepo) FollowingAmong(_ context.Context, followerID uint, userIDs []uint) (map[uint]bool, error) {
+	f.amongCalls++
+	if f.err != nil {
+		return nil, f.err
+	}
+	out := map[uint]bool{}
+	for _, id := range userIDs {
+		if f.pairs[[2]uint{followerID, id}] {
+			out[id] = true
+		}
+	}
+	return out, nil
+}
+
 var hcm = time.FixedZone("ICT", 7*3600)
 
 func sampleArticle() models.Article {
@@ -147,7 +198,7 @@ func TestTagService_ListPassesError(t *testing.T) {
 
 func TestArticleService_ListMapsAndUsesDefaultLimit(t *testing.T) {
 	repo := &fakeArticleRepo{articles: []models.Article{sampleArticle(), {Slug: "no-tags"}}, total: 42}
-	res, err := services.NewArticleService(repo).List(context.Background())
+	res, err := services.NewArticleService(repo, &fakeFollowRepo{}).List(context.Background(), 0, services.ArticleQuery{Limit: services.DefaultLimit})
 	if err != nil {
 		t.Fatalf("List: %v", err)
 	}
@@ -182,7 +233,7 @@ func TestArticleService_ListMapsAndUsesDefaultLimit(t *testing.T) {
 }
 
 func TestArticleService_ListEmpty(t *testing.T) {
-	res, err := services.NewArticleService(&fakeArticleRepo{}).List(context.Background())
+	res, err := services.NewArticleService(&fakeArticleRepo{}, &fakeFollowRepo{}).List(context.Background(), 0, services.ArticleQuery{Limit: services.DefaultLimit})
 	if err != nil {
 		t.Fatalf("List: %v", err)
 	}
@@ -192,7 +243,7 @@ func TestArticleService_ListEmpty(t *testing.T) {
 }
 
 func TestArticleService_Get(t *testing.T) {
-	res, err := services.NewArticleService(&fakeArticleRepo{articles: []models.Article{sampleArticle()}}).Get(context.Background(), "s")
+	res, err := services.NewArticleService(&fakeArticleRepo{articles: []models.Article{sampleArticle()}}, &fakeFollowRepo{}).Get(context.Background(), 0, "s")
 	if err != nil {
 		t.Fatalf("Get: %v", err)
 	}
@@ -202,7 +253,7 @@ func TestArticleService_Get(t *testing.T) {
 }
 
 func TestArticleService_GetNotFound(t *testing.T) {
-	_, err := services.NewArticleService(&fakeArticleRepo{}).Get(context.Background(), "khong-co")
+	_, err := services.NewArticleService(&fakeArticleRepo{}, &fakeFollowRepo{}).Get(context.Background(), 0, "khong-co")
 	var appErr *apperr.Error
 	if !errors.As(err, &appErr) || appErr.Status != http.StatusNotFound || appErr.Fields["article"][0] != "not found" {
 		t.Fatalf("err = %v, muốn apperr.NotFound(\"article\")", err)
@@ -211,7 +262,7 @@ func TestArticleService_GetNotFound(t *testing.T) {
 
 func TestArticleService_GetPassesOtherErrors(t *testing.T) {
 	boom := errors.New("db down")
-	_, err := services.NewArticleService(&fakeArticleRepo{err: boom}).Get(context.Background(), "x")
+	_, err := services.NewArticleService(&fakeArticleRepo{err: boom}, &fakeFollowRepo{}).Get(context.Background(), 0, "x")
 	if !errors.Is(err, boom) {
 		t.Errorf("err = %v, muốn trả nguyên lỗi khác ErrNotFound", err)
 	}

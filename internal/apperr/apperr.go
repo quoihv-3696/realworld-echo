@@ -61,3 +61,7 @@ func TooLong(field string, max int) *Error {
 func NotNull(field string) *Error {
 	return New(http.StatusUnprocessableEntity, field, "can't be null")
 }
+
+func Invalid(field, message string) *Error {
+	return New(http.StatusUnprocessableEntity, field, message)
+}

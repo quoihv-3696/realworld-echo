@@ -11,8 +11,11 @@ import (
 )
 
 type ArticleFilter struct {
-	Limit  int
-	Offset int
+	Limit      int
+	Offset     int
+	Tag        string
+	Author     string
+	FollowedBy uint
 }
 
 type ArticleRepository interface {
@@ -35,12 +38,13 @@ func (r *articleRepository) List(ctx context.Context, f ArticleFilter) ([]models
 	db := r.db.WithContext(ctx)
 
 	var total int64
-	if err := db.Model(&models.Article{}).Count(&total).Error; err != nil {
+	if err := db.Model(&models.Article{}).Scopes(r.filter(f)).Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 
 	var articles []models.Article
-	err := db.Preload("Author").
+	err := db.Scopes(r.filter(f)).
+		Preload("Author").
 		Preload("Tags").
 		Order("created_at DESC, id DESC").
 		Limit(f.Limit).
@@ -124,4 +128,26 @@ func upsertTags(tx *gorm.DB, names []string) ([]models.Tag, error) {
 		return nil, err
 	}
 	return out, nil
+}
+
+func (r *articleRepository) filter(f ArticleFilter) func(*gorm.DB) *gorm.DB {
+	return func(db *gorm.DB) *gorm.DB {
+		if f.Tag != "" {
+			db = db.Where("articles.id IN (?)", r.db.Table("article_tags").
+				Select("article_tags.article_id").
+				Joins("JOIN tags ON tags.id = article_tags.tag_id").
+				Where("tags.name = ?", f.Tag))
+		}
+		if f.Author != "" {
+			db = db.Where("articles.author_id IN (?)", r.db.Model(&models.User{}).
+				Select("id").
+				Where("username = ?", f.Author))
+		}
+		if f.FollowedBy != 0 {
+			db = db.Where("articles.author_id IN (?)", r.db.Model(&models.Follow{}).
+				Select("following_id").
+				Where("follower_id = ?", f.FollowedBy))
+		}
+		return db
+	}
 }

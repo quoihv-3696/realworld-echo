@@ -68,3 +68,10 @@ func CreateComment(t *testing.T, db *gorm.DB, article models.Article, author mod
 	}
 	return c
 }
+
+func CreateFollow(t *testing.T, db *gorm.DB, follower, following models.User) {
+	t.Helper()
+	if err := db.Create(&models.Follow{FollowerID: follower.ID, FollowingID: following.ID}).Error; err != nil {
+		t.Fatalf("tạo follow: %v", err)
+	}
+}

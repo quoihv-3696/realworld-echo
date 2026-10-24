@@ -15,37 +15,35 @@ import (
 const DefaultLimit = 20
 
 type ArticleService struct {
-	repo repository.ArticleRepository
+	repo    repository.ArticleRepository
+	follows repository.FollowRepository
 }
 
-func NewArticleService(repo repository.ArticleRepository) *ArticleService {
-	return &ArticleService{repo: repo}
+func NewArticleService(repo repository.ArticleRepository, follows repository.FollowRepository) *ArticleService {
+	return &ArticleService{repo: repo, follows: follows}
 }
 
-func (s *ArticleService) List(ctx context.Context) (dto.MultipleArticlesResponse, error) {
-	articles, total, err := s.repo.List(ctx, repository.ArticleFilter{Limit: DefaultLimit})
-	if err != nil {
+func (s *ArticleService) List(ctx context.Context, viewerID uint, q ArticleQuery) (dto.MultipleArticlesResponse, error) {
+	if err := validatePage(q); err != nil {
 		return dto.MultipleArticlesResponse{}, err
 	}
-
-	items := make([]dto.ArticleListItem, 0, len(articles))
-	for _, a := range articles {
-		items = append(items, toArticleListItem(a))
-	}
-
-	return dto.MultipleArticlesResponse{
-		Articles:      items,
-		ArticlesCount: total,
-	}, nil
-
+	return s.listArticles(ctx, viewerID, repository.ArticleFilter{
+		Tag: q.Tag, Author: q.Author, Limit: q.Limit, Offset: q.Offset,
+	})
 }
 
-func (s *ArticleService) Get(ctx context.Context, slug string) (dto.SingleArticleResponse, error) {
+func (s *ArticleService) Get(ctx context.Context, viewerID uint, slug string) (dto.SingleArticleResponse, error) {
 	a, err := findArticle(ctx, s.repo, slug)
 	if err != nil {
 		return dto.SingleArticleResponse{}, err
 	}
-	return dto.SingleArticleResponse{Article: toArticle(*a)}, nil
+	following, err := followingAmong(ctx, s.follows, viewerID, []uint{a.AuthorID})
+	if err != nil {
+		return dto.SingleArticleResponse{}, err
+	}
+	res := dto.SingleArticleResponse{Article: toArticle(*a)}
+	res.Article.Author.Following = following[a.AuthorID]
+	return res, nil
 }
 
 const maxSlugAttempts = 3
@@ -77,14 +75,10 @@ func (s *ArticleService) Create(ctx context.Context, authorID uint, req dto.Crea
 		}
 		break
 	}
-	return s.Get(ctx, a.Slug)
+	return s.Get(ctx, authorID, a.Slug)
 }
 
-func (s *ArticleService) Update(ctx context.Context, viewerID uint, articleSlug string, req dto.UpdateArticleRequest) (dto.SingleArticleResponse, error) {
-	a, err := findOwnArticle(ctx, s.repo, viewerID, articleSlug)
-	if err != nil {
-		return dto.SingleArticleResponse{}, err
-	}
+func (s *ArticleService) Update(ctx context.Context, a *models.Article, req dto.UpdateArticleRequest) (dto.SingleArticleResponse, error) {
 	in := req.Article
 	if in.Title.Set {
 		if isBlank(in.Title) {
@@ -116,14 +110,10 @@ func (s *ArticleService) Update(ctx context.Context, viewerID uint, articleSlug 
 	if err := s.repo.Update(ctx, a, tags); err != nil {
 		return dto.SingleArticleResponse{}, err
 	}
-	return s.Get(ctx, a.Slug)
+	return s.Get(ctx, a.AuthorID, a.Slug)
 }
 
-func (s *ArticleService) Delete(ctx context.Context, viewerID uint, articleSlug string) error {
-	a, err := findOwnArticle(ctx, s.repo, viewerID, articleSlug)
-	if err != nil {
-		return err
-	}
+func (s *ArticleService) Delete(ctx context.Context, a *models.Article) error {
 	return s.repo.Delete(ctx, a.ID)
 }
 
@@ -158,4 +148,49 @@ func normalizeTags(in []string) []string {
 		out = append(out, t)
 	}
 	return out
+}
+
+func (s *ArticleService) Feed(ctx context.Context, viewerID uint, q ArticleQuery) (dto.MultipleArticlesResponse, error) {
+	if err := validatePage(q); err != nil {
+		return dto.MultipleArticlesResponse{}, err
+	}
+	return s.listArticles(ctx, viewerID, repository.ArticleFilter{
+		FollowedBy: viewerID, Limit: q.Limit, Offset: q.Offset,
+	})
+}
+
+func validatePage(q ArticleQuery) error {
+	if q.Limit < 1 || q.Limit > MaxLimit {
+		return apperr.Invalid("limit", "must be between 1 and 100")
+	}
+	if q.Offset < 0 {
+		return apperr.Invalid("offset", "must not be negative")
+	}
+	return nil
+}
+
+func (s *ArticleService) listArticles(ctx context.Context, viewerID uint, f repository.ArticleFilter) (dto.MultipleArticlesResponse, error) {
+	articles, total, err := s.repo.List(ctx, f)
+	if err != nil {
+		return dto.MultipleArticlesResponse{}, err
+	}
+	authorIDs := make([]uint, 0, len(articles))
+	for _, a := range articles {
+		authorIDs = append(authorIDs, a.AuthorID)
+	}
+	following, err := followingAmong(ctx, s.follows, viewerID, authorIDs)
+	if err != nil {
+		return dto.MultipleArticlesResponse{}, err
+	}
+	items := make([]dto.ArticleListItem, 0, len(articles))
+	for _, a := range articles {
+		item := toArticleListItem(a)
+		item.Author.Following = following[a.AuthorID]
+		items = append(items, item)
+	}
+	return dto.MultipleArticlesResponse{Articles: items, ArticlesCount: total}, nil
+}
+
+func (s *ArticleService) Owned(ctx context.Context, viewerID uint, articleSlug string) (*models.Article, error) {
+	return findOwnArticle(ctx, s.repo, viewerID, articleSlug)
 }

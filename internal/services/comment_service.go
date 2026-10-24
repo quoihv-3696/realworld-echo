@@ -13,13 +13,14 @@ import (
 type CommentService struct {
 	articles repository.ArticleRepository
 	comments repository.CommentRepository
+	follows  repository.FollowRepository
 }
 
-func NewCommentService(articles repository.ArticleRepository, comments repository.CommentRepository) *CommentService {
-	return &CommentService{articles: articles, comments: comments}
+func NewCommentService(articles repository.ArticleRepository, comments repository.CommentRepository, follows repository.FollowRepository) *CommentService {
+	return &CommentService{articles: articles, comments: comments, follows: follows}
 }
 
-func (s *CommentService) List(ctx context.Context, articleSlug string) (dto.MultipleCommentsResponse, error) {
+func (s *CommentService) List(ctx context.Context, viewerID uint, articleSlug string) (dto.MultipleCommentsResponse, error) {
 	a, err := findArticle(ctx, s.articles, articleSlug)
 	if err != nil {
 		return dto.MultipleCommentsResponse{}, err
@@ -28,9 +29,19 @@ func (s *CommentService) List(ctx context.Context, articleSlug string) (dto.Mult
 	if err != nil {
 		return dto.MultipleCommentsResponse{}, err
 	}
+	authorIDs := make([]uint, 0, len(comments))
+	for _, c := range comments {
+		authorIDs = append(authorIDs, c.AuthorID)
+	}
+	following, err := followingAmong(ctx, s.follows, viewerID, authorIDs)
+	if err != nil {
+		return dto.MultipleCommentsResponse{}, err
+	}
 	out := make([]dto.Comment, 0, len(comments))
 	for _, c := range comments {
-		out = append(out, toComment(c))
+		item := toComment(c)
+		item.Author.Following = following[c.AuthorID]
+		out = append(out, item)
 	}
 	return dto.MultipleCommentsResponse{Comments: out}, nil
 }

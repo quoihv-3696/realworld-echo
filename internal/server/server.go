@@ -20,21 +20,23 @@ func New(db *gorm.DB, jwt *auth.JWT) *echo.Echo {
 	userRepo := repository.NewUserRepository(db)
 	articleRepo := repository.NewArticleRepository(db)
 	commentRepo := repository.NewCommentRepository(db)
+	followRepo := repository.NewFollowRepository(db)
 
 	tags := handlers.NewTagHandler(services.NewTagService(repository.NewTagRepository(db)))
-	articles := handlers.NewArticleHandler(services.NewArticleService(articleRepo))
-	comments := handlers.NewCommentHandler(services.NewCommentService(articleRepo, commentRepo))
+	articles := handlers.NewArticleHandler(services.NewArticleService(articleRepo, followRepo))
+	comments := handlers.NewCommentHandler(services.NewCommentService(articleRepo, commentRepo, followRepo))
 	users := handlers.NewUserHandler(services.NewUserService(userRepo, jwt))
-	profiles := handlers.NewProfileHandler(services.NewProfileService(userRepo))
+	profiles := handlers.NewProfileHandler(services.NewProfileService(userRepo, followRepo))
 
 	api := e.Group("/api")
 	api.GET("/tags", tags.List)
 
-	api.GET("/articles", articles.List)
+	api.GET("/articles", articles.List, jwt.Optional())
+	api.GET("/articles/feed", articles.Feed, jwt.Required())
 	api.POST("/articles", articles.Create, jwt.Required())
-	api.GET("/articles/:slug", articles.Get)
-	api.PUT("/articles/:slug", articles.Update, jwt.Required())
-	api.DELETE("/articles/:slug", articles.Delete, jwt.Required())
+	api.GET("/articles/:slug", articles.Get, jwt.Optional())
+	api.PUT("/articles/:slug", articles.Update, jwt.Required(), articles.RequireOwner)
+	api.DELETE("/articles/:slug", articles.Delete, jwt.Required(), articles.RequireOwner)
 
 	api.GET("/articles/:slug/comments", comments.List, jwt.Optional())
 	api.POST("/articles/:slug/comments", comments.Create, jwt.Required())
@@ -46,6 +48,8 @@ func New(db *gorm.DB, jwt *auth.JWT) *echo.Echo {
 	api.PUT("/user", users.Update, jwt.Required())
 
 	api.GET("/profiles/:username", profiles.Get, jwt.Optional())
+	api.POST("/profiles/:username/follow", profiles.Follow, jwt.Required())
+	api.DELETE("/profiles/:username/follow", profiles.Unfollow, jwt.Required())
 
 	return e
 }

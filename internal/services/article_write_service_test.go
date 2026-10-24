@@ -36,7 +36,7 @@ func ownedArticleRepo() *fakeArticleRepo {
 }
 
 func TestArticleService_CreateBlankFields(t *testing.T) {
-	svc := services.NewArticleService(&fakeArticleRepo{})
+	svc := services.NewArticleService(&fakeArticleRepo{}, &fakeFollowRepo{})
 	cases := map[string]dto.NewArticle{
 		"title":       {Title: "", Description: "d", Body: "b"},
 		"description": {Title: "t", Description: "", Body: "b"},
@@ -50,7 +50,7 @@ func TestArticleService_CreateBlankFields(t *testing.T) {
 
 func TestArticleService_CreateSlugTagsAuthor(t *testing.T) {
 	repo := &fakeArticleRepo{authors: map[uint]models.User{jakeID: {ID: jakeID, Username: "jake"}}}
-	res, err := services.NewArticleService(repo).Create(context.Background(), jakeID, newArticle("Học Go trong 30 ngày", " go ", "echo", "go", ""))
+	res, err := services.NewArticleService(repo, &fakeFollowRepo{}).Create(context.Background(), jakeID, newArticle("Học Go trong 30 ngày", " go ", "echo", "go", ""))
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
@@ -74,7 +74,7 @@ func TestArticleService_CreateSlugTagsAuthor(t *testing.T) {
 
 func TestArticleService_CreateWithoutTags(t *testing.T) {
 	repo := &fakeArticleRepo{}
-	res, err := services.NewArticleService(repo).Create(context.Background(), jakeID, newArticle("Không tag"))
+	res, err := services.NewArticleService(repo, &fakeFollowRepo{}).Create(context.Background(), jakeID, newArticle("Không tag"))
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
@@ -85,7 +85,7 @@ func TestArticleService_CreateWithoutTags(t *testing.T) {
 
 func TestArticleService_CreateDuplicateTitleGetsSuffix(t *testing.T) {
 	repo := &fakeArticleRepo{articles: []models.Article{{ID: 1, Slug: "dup-title", AuthorID: jakeID}}, nextID: 1}
-	res, err := services.NewArticleService(repo).Create(context.Background(), jakeID, newArticle("Dup Title"))
+	res, err := services.NewArticleService(repo, &fakeFollowRepo{}).Create(context.Background(), jakeID, newArticle("Dup Title"))
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
@@ -97,7 +97,7 @@ func TestArticleService_CreateDuplicateTitleGetsSuffix(t *testing.T) {
 func TestArticleService_CreateStopsRetrying(t *testing.T) {
 	dup := &repository.DuplicateError{Field: "slug"}
 	repo := &fakeArticleRepo{createErrs: []error{dup, dup, dup, dup}}
-	_, err := services.NewArticleService(repo).Create(context.Background(), jakeID, newArticle("Kẹt"))
+	_, err := services.NewArticleService(repo, &fakeFollowRepo{}).Create(context.Background(), jakeID, newArticle("Kẹt"))
 	if err == nil {
 		t.Fatal("slug trùng mãi mà Create vẫn thành công")
 	}
@@ -109,7 +109,7 @@ func TestArticleService_CreateStopsRetrying(t *testing.T) {
 func TestArticleService_CreatePassesOtherErrors(t *testing.T) {
 	boom := errors.New("db down")
 	repo := &fakeArticleRepo{createErrs: []error{boom}}
-	_, err := services.NewArticleService(repo).Create(context.Background(), jakeID, newArticle("Lỗi"))
+	_, err := services.NewArticleService(repo, &fakeFollowRepo{}).Create(context.Background(), jakeID, newArticle("Lỗi"))
 	if !errors.Is(err, boom) {
 		t.Errorf("err = %v, muốn trả nguyên lỗi khác DuplicateError (không thử lại)", err)
 	}
@@ -120,11 +120,15 @@ func TestArticleService_CreatePassesOtherErrors(t *testing.T) {
 
 func TestArticleService_UpdateFields(t *testing.T) {
 	repo := ownedArticleRepo()
-	svc := services.NewArticleService(repo)
+	svc := services.NewArticleService(repo, &fakeFollowRepo{})
 	ctx := context.Background()
 	update := func(u dto.UpdateArticle) dto.Article {
 		t.Helper()
-		res, err := svc.Update(ctx, jakeID, "s", dto.UpdateArticleRequest{Article: u})
+		a, err := svc.Owned(ctx, jakeID, "s")
+		if err != nil {
+			t.Fatalf("Owned: %v", err)
+		}
+		res, err := svc.Update(ctx, a, dto.UpdateArticleRequest{Article: u})
 		if err != nil {
 			t.Fatalf("Update: %v", err)
 		}
@@ -150,7 +154,11 @@ func TestArticleService_UpdateFields(t *testing.T) {
 }
 
 func TestArticleService_UpdateRejectsBlankAndNull(t *testing.T) {
-	svc := services.NewArticleService(ownedArticleRepo())
+	svc := services.NewArticleService(ownedArticleRepo(), &fakeFollowRepo{})
+	a, err := svc.Owned(context.Background(), jakeID, "s")
+	if err != nil {
+		t.Fatalf("Owned: %v", err)
+	}
 	cases := []struct {
 		in         dto.UpdateArticle
 		field, msg string
@@ -161,28 +169,27 @@ func TestArticleService_UpdateRejectsBlankAndNull(t *testing.T) {
 		{dto.UpdateArticle{TagList: dto.Optional[[]string]{Set: true}}, "tagList", "can't be null"},
 	}
 	for _, tc := range cases {
-		_, err := svc.Update(context.Background(), jakeID, "s", dto.UpdateArticleRequest{Article: tc.in})
+		_, err := svc.Update(context.Background(), a, dto.UpdateArticleRequest{Article: tc.in})
 		wantAppErr(t, err, http.StatusUnprocessableEntity, tc.field, tc.msg)
 	}
 }
 
-func TestArticleService_OwnershipAndNotFound(t *testing.T) {
+func TestArticleService_OwnedAndDelete(t *testing.T) {
 	repo := ownedArticleRepo()
-	svc := services.NewArticleService(repo)
+	svc := services.NewArticleService(repo, &fakeFollowRepo{})
 	ctx := context.Background()
-	body := dto.UpdateArticleRequest{Article: dto.UpdateArticle{Body: set("hijacked")}}
 
-	_, err := svc.Update(ctx, 8, "s", body)
+	_, err := svc.Owned(ctx, 8, "s")
 	wantAppErr(t, err, http.StatusForbidden, "article", "forbidden")
-	_, err = svc.Update(ctx, jakeID, "khong-co", body)
+	_, err = svc.Owned(ctx, jakeID, "khong-co")
 	wantAppErr(t, err, http.StatusNotFound, "article", "not found")
-	wantAppErr(t, svc.Delete(ctx, 8, "s"), http.StatusForbidden, "article", "forbidden")
-	wantAppErr(t, svc.Delete(ctx, jakeID, "khong-co"), http.StatusNotFound, "article", "not found")
-	if len(repo.deleted) != 0 {
-		t.Fatalf("người khác xóa được bài: repo.Delete(%v)", repo.deleted)
+
+	a, err := svc.Owned(ctx, jakeID, "s")
+	if err != nil || a.ID != 1 {
+		t.Fatalf("Owned của tác giả: %+v, %v; muốn bài id 1", a, err)
 	}
-	if err := svc.Delete(ctx, jakeID, "s"); err != nil {
-		t.Fatalf("tác giả xóa bài: %v", err)
+	if err := svc.Delete(ctx, a); err != nil {
+		t.Fatalf("Delete: %v", err)
 	}
 	if !slices.Equal(repo.deleted, []uint{1}) {
 		t.Errorf("repo.Delete nhận %v, muốn [1] (ID của bài)", repo.deleted)

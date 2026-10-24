@@ -86,12 +86,12 @@ func commentFixture() (*services.CommentService, *fakeCommentRepo) {
 		},
 		nextID: 12,
 	}
-	return services.NewCommentService(articles, comments), comments
+	return services.NewCommentService(articles, comments, &fakeFollowRepo{}), comments
 }
 
 func TestCommentService_List(t *testing.T) {
 	svc, _ := commentFixture()
-	res, err := svc.List(context.Background(), "a")
+	res, err := svc.List(context.Background(), 0, "a")
 	if err != nil {
 		t.Fatalf("List: %v", err)
 	}
@@ -102,13 +102,13 @@ func TestCommentService_List(t *testing.T) {
 	if !slices.Equal(bodies, []string{"của jake trên a", "của anna trên a"}) || res.Comments[1].Author.Username != "anna" {
 		t.Errorf("comments = %+v, muốn 2 comment của bài a kèm author", res.Comments)
 	}
-	_, err = svc.List(context.Background(), "khong-co")
+	_, err = svc.List(context.Background(), 0, "khong-co")
 	wantAppErr(t, err, http.StatusNotFound, "article", "not found")
 }
 
 func TestCommentService_ListEmptyIsNotNil(t *testing.T) {
 	articles := &fakeArticleRepo{articles: []models.Article{{ID: 1, Slug: "a"}}}
-	res, err := services.NewCommentService(articles, &fakeCommentRepo{}).List(context.Background(), "a")
+	res, err := services.NewCommentService(articles, &fakeCommentRepo{}, &fakeFollowRepo{}).List(context.Background(), 0, "a")
 	if err != nil {
 		t.Fatalf("List: %v", err)
 	}
@@ -165,8 +165,8 @@ func TestCommentService_Delete(t *testing.T) {
 func TestCommentService_PassesOtherErrors(t *testing.T) {
 	boom := errors.New("db down")
 	articles := &fakeArticleRepo{articles: []models.Article{{ID: 1, Slug: "a"}}}
-	svc := services.NewCommentService(articles, &fakeCommentRepo{err: boom})
-	if _, err := svc.List(context.Background(), "a"); !errors.Is(err, boom) {
+	svc := services.NewCommentService(articles, &fakeCommentRepo{err: boom}, &fakeFollowRepo{})
+	if _, err := svc.List(context.Background(), 0, "a"); !errors.Is(err, boom) {
 		t.Errorf("List: err = %v, muốn trả nguyên lỗi repo", err)
 	}
 	if err := svc.Delete(context.Background(), jakeID, "a", 1); !errors.Is(err, boom) {
@@ -178,9 +178,9 @@ func TestProfileService_Get(t *testing.T) {
 	repo := newFakeUserRepo()
 	bio := "Gopher"
 	repo.users[1] = models.User{ID: 1, Username: "jake", Email: "jake@test.local", Bio: &bio}
-	svc := services.NewProfileService(repo)
+	svc := services.NewProfileService(repo, &fakeFollowRepo{})
 
-	res, err := svc.Get(context.Background(), "jake")
+	res, err := svc.Get(context.Background(), 0, "jake")
 	if err != nil {
 		t.Fatalf("Get: %v", err)
 	}
@@ -188,11 +188,11 @@ func TestProfileService_Get(t *testing.T) {
 	if p.Username != "jake" || p.Bio == nil || *p.Bio != "Gopher" || p.Image != nil || p.Following {
 		t.Errorf("profile = %+v, muốn jake, bio Gopher, image nil, following false", p)
 	}
-	_, err = svc.Get(context.Background(), "khong-co")
+	_, err = svc.Get(context.Background(), 0, "khong-co")
 	wantAppErr(t, err, http.StatusNotFound, "profile", "not found")
 
 	repo.err = errors.New("db down")
-	if _, err := svc.Get(context.Background(), "jake"); !errors.Is(err, repo.err) {
+	if _, err := svc.Get(context.Background(), 0, "jake"); !errors.Is(err, repo.err) {
 		t.Errorf("err = %v, muốn trả nguyên lỗi repo", err)
 	}
 }

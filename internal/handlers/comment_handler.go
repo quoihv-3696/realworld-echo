@@ -20,7 +20,8 @@ func NewCommentHandler(svc *services.CommentService) *CommentHandler {
 }
 
 func (h *CommentHandler) List(c *echo.Context) error {
-	res, err := h.svc.List(c.Request().Context(), c.Param("slug"))
+	viewerID, _ := auth.UserID(c)
+	res, err := h.svc.List(c.Request().Context(), viewerID, c.Param("slug"))
 	if err != nil {
 		return err
 	}
