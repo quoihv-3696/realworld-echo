@@ -36,7 +36,7 @@ func ownedArticleRepo() *fakeArticleRepo {
 }
 
 func TestArticleService_CreateBlankFields(t *testing.T) {
-	svc := services.NewArticleService(&fakeArticleRepo{}, &fakeFollowRepo{}, &fakeFavoriteRepo{})
+	svc := services.NewArticleService(&fakeArticleRepo{}, &fakeFollowRepo{}, &fakeFavoriteRepo{}, nil)
 	cases := map[string]dto.NewArticle{
 		"title":       {Title: "", Description: "d", Body: "b"},
 		"description": {Title: "t", Description: "", Body: "b"},
@@ -50,7 +50,7 @@ func TestArticleService_CreateBlankFields(t *testing.T) {
 
 func TestArticleService_CreateSlugTagsAuthor(t *testing.T) {
 	repo := &fakeArticleRepo{authors: map[uint]models.User{jakeID: {ID: jakeID, Username: "jake"}}}
-	res, err := services.NewArticleService(repo, &fakeFollowRepo{}, &fakeFavoriteRepo{}).Create(context.Background(), jakeID, newArticle("Học Go trong 30 ngày", " go ", "echo", "go", ""))
+	res, err := services.NewArticleService(repo, &fakeFollowRepo{}, &fakeFavoriteRepo{}, nil).Create(context.Background(), jakeID, newArticle("Học Go trong 30 ngày", " go ", "echo", "go", ""))
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
@@ -74,7 +74,7 @@ func TestArticleService_CreateSlugTagsAuthor(t *testing.T) {
 
 func TestArticleService_CreateWithoutTags(t *testing.T) {
 	repo := &fakeArticleRepo{}
-	res, err := services.NewArticleService(repo, &fakeFollowRepo{}, &fakeFavoriteRepo{}).Create(context.Background(), jakeID, newArticle("Không tag"))
+	res, err := services.NewArticleService(repo, &fakeFollowRepo{}, &fakeFavoriteRepo{}, nil).Create(context.Background(), jakeID, newArticle("Không tag"))
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
@@ -85,7 +85,7 @@ func TestArticleService_CreateWithoutTags(t *testing.T) {
 
 func TestArticleService_CreateDuplicateTitleGetsSuffix(t *testing.T) {
 	repo := &fakeArticleRepo{articles: []models.Article{{ID: 1, Slug: "dup-title", AuthorID: jakeID}}, nextID: 1}
-	res, err := services.NewArticleService(repo, &fakeFollowRepo{}, &fakeFavoriteRepo{}).Create(context.Background(), jakeID, newArticle("Dup Title"))
+	res, err := services.NewArticleService(repo, &fakeFollowRepo{}, &fakeFavoriteRepo{}, nil).Create(context.Background(), jakeID, newArticle("Dup Title"))
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
@@ -97,7 +97,7 @@ func TestArticleService_CreateDuplicateTitleGetsSuffix(t *testing.T) {
 func TestArticleService_CreateStopsRetrying(t *testing.T) {
 	dup := &repository.DuplicateError{Field: "slug"}
 	repo := &fakeArticleRepo{createErrs: []error{dup, dup, dup, dup}}
-	_, err := services.NewArticleService(repo, &fakeFollowRepo{}, &fakeFavoriteRepo{}).Create(context.Background(), jakeID, newArticle("Kẹt"))
+	_, err := services.NewArticleService(repo, &fakeFollowRepo{}, &fakeFavoriteRepo{}, nil).Create(context.Background(), jakeID, newArticle("Kẹt"))
 	if err == nil {
 		t.Fatal("slug trùng mãi mà Create vẫn thành công")
 	}
@@ -109,7 +109,7 @@ func TestArticleService_CreateStopsRetrying(t *testing.T) {
 func TestArticleService_CreatePassesOtherErrors(t *testing.T) {
 	boom := errors.New("db down")
 	repo := &fakeArticleRepo{createErrs: []error{boom}}
-	_, err := services.NewArticleService(repo, &fakeFollowRepo{}, &fakeFavoriteRepo{}).Create(context.Background(), jakeID, newArticle("Lỗi"))
+	_, err := services.NewArticleService(repo, &fakeFollowRepo{}, &fakeFavoriteRepo{}, nil).Create(context.Background(), jakeID, newArticle("Lỗi"))
 	if !errors.Is(err, boom) {
 		t.Errorf("err = %v, muốn trả nguyên lỗi khác DuplicateError (không thử lại)", err)
 	}
@@ -120,7 +120,7 @@ func TestArticleService_CreatePassesOtherErrors(t *testing.T) {
 
 func TestArticleService_UpdateFields(t *testing.T) {
 	repo := ownedArticleRepo()
-	svc := services.NewArticleService(repo, &fakeFollowRepo{}, &fakeFavoriteRepo{})
+	svc := services.NewArticleService(repo, &fakeFollowRepo{}, &fakeFavoriteRepo{}, nil)
 	ctx := context.Background()
 	update := func(u dto.UpdateArticle) dto.Article {
 		t.Helper()
@@ -154,7 +154,7 @@ func TestArticleService_UpdateFields(t *testing.T) {
 }
 
 func TestArticleService_UpdateRejectsBlankAndNull(t *testing.T) {
-	svc := services.NewArticleService(ownedArticleRepo(), &fakeFollowRepo{}, &fakeFavoriteRepo{})
+	svc := services.NewArticleService(ownedArticleRepo(), &fakeFollowRepo{}, &fakeFavoriteRepo{}, nil)
 	a, err := svc.Owned(context.Background(), jakeID, "s")
 	if err != nil {
 		t.Fatalf("Owned: %v", err)
@@ -176,7 +176,7 @@ func TestArticleService_UpdateRejectsBlankAndNull(t *testing.T) {
 
 func TestArticleService_OwnedAndDelete(t *testing.T) {
 	repo := ownedArticleRepo()
-	svc := services.NewArticleService(repo, &fakeFollowRepo{}, &fakeFavoriteRepo{})
+	svc := services.NewArticleService(repo, &fakeFollowRepo{}, &fakeFavoriteRepo{}, nil)
 	ctx := context.Background()
 
 	_, err := svc.Owned(ctx, 8, "s")

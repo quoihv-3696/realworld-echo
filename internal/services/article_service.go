@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/quoihv-3696/realworld-echo/internal/apperr"
+	"github.com/quoihv-3696/realworld-echo/internal/cache"
 	"github.com/quoihv-3696/realworld-echo/internal/dto"
 	"github.com/quoihv-3696/realworld-echo/internal/models"
 	"github.com/quoihv-3696/realworld-echo/internal/repository"
@@ -18,18 +19,25 @@ type ArticleService struct {
 	repo      repository.ArticleRepository
 	follows   repository.FollowRepository
 	favorites repository.FavoriteRepository
+	cache     *cache.Store
 }
 
-func NewArticleService(repo repository.ArticleRepository, follows repository.FollowRepository, favorites repository.FavoriteRepository) *ArticleService {
-	return &ArticleService{repo: repo, follows: follows, favorites: favorites}
+func NewArticleService(repo repository.ArticleRepository, follows repository.FollowRepository, favorites repository.FavoriteRepository, cache *cache.Store) *ArticleService {
+	return &ArticleService{repo: repo, follows: follows, favorites: favorites, cache: cache}
 }
 
 func (s *ArticleService) List(ctx context.Context, viewerID uint, q ArticleQuery) (dto.MultipleArticlesResponse, error) {
 	if err := validatePage(q); err != nil {
 		return dto.MultipleArticlesResponse{}, err
 	}
-	return s.listArticles(ctx, viewerID, repository.ArticleFilter{
+	f := repository.ArticleFilter{
 		Tag: q.Tag, Author: q.Author, FavoritedBy: q.Favorited, Limit: q.Limit, Offset: q.Offset,
+	}
+	if viewerID != 0 {
+		return s.listArticles(ctx, viewerID, f)
+	}
+	return s.cache.Remember(ctx, q.cacheKey(), func() (dto.MultipleArticlesResponse, error) {
+		return s.listArticles(ctx, 0, f)
 	})
 }
 
@@ -80,6 +88,7 @@ func (s *ArticleService) Create(ctx context.Context, authorID uint, req dto.Crea
 		}
 		break
 	}
+	s.cache.Invalidate(ctx)
 	return s.Get(ctx, authorID, a.Slug)
 }
 
@@ -115,11 +124,16 @@ func (s *ArticleService) Update(ctx context.Context, a *models.Article, req dto.
 	if err := s.repo.Update(ctx, a, tags); err != nil {
 		return dto.SingleArticleResponse{}, err
 	}
+	s.cache.Invalidate(ctx)
 	return s.Get(ctx, a.AuthorID, a.Slug)
 }
 
 func (s *ArticleService) Delete(ctx context.Context, a *models.Article) error {
-	return s.repo.Delete(ctx, a.ID)
+	if err := s.repo.Delete(ctx, a.ID); err != nil {
+		return err
+	}
+	s.cache.Invalidate(ctx)
+	return nil
 }
 
 func findArticle(ctx context.Context, repo repository.ArticleRepository, articleSlug string) (*models.Article, error) {
@@ -204,6 +218,7 @@ func (s *ArticleService) Favorite(ctx context.Context, viewerID uint, articleSlu
 	if err := s.favorites.Favorite(ctx, viewerID, a.ID); err != nil {
 		return dto.SingleArticleResponse{}, err
 	}
+	s.cache.Invalidate(ctx)
 	return s.single(ctx, viewerID, a)
 }
 
@@ -215,5 +230,6 @@ func (s *ArticleService) Unfavorite(ctx context.Context, viewerID uint, articleS
 	if err := s.favorites.Unfavorite(ctx, viewerID, a.ID); err != nil {
 		return dto.SingleArticleResponse{}, err
 	}
+	s.cache.Invalidate(ctx)
 	return s.single(ctx, viewerID, a)
 }

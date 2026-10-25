@@ -105,7 +105,7 @@ func (f *fakeUserRepo) Update(_ context.Context, u *models.User) error {
 
 func newUserService(t *testing.T) (*services.UserService, *fakeUserRepo) {
 	repo := newFakeUserRepo()
-	return services.NewUserService(repo, testutil.JWT(t)), repo
+	return services.NewUserService(repo, testutil.JWT(t), nil), repo
 }
 
 func register(t *testing.T, svc *services.UserService, username, password string) dto.User {

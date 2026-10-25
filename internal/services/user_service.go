@@ -7,18 +7,20 @@ import (
 
 	"github.com/quoihv-3696/realworld-echo/internal/apperr"
 	"github.com/quoihv-3696/realworld-echo/internal/auth"
+	"github.com/quoihv-3696/realworld-echo/internal/cache"
 	"github.com/quoihv-3696/realworld-echo/internal/dto"
 	"github.com/quoihv-3696/realworld-echo/internal/models"
 	"github.com/quoihv-3696/realworld-echo/internal/repository"
 )
 
 type UserService struct {
-	repo repository.UserRepository
-	jwt  *auth.JWT
+	repo  repository.UserRepository
+	jwt   *auth.JWT
+	cache *cache.Store
 }
 
-func NewUserService(repo repository.UserRepository, jwt *auth.JWT) *UserService {
-	return &UserService{repo: repo, jwt: jwt}
+func NewUserService(repo repository.UserRepository, jwt *auth.JWT, cache *cache.Store) *UserService {
+	return &UserService{repo: repo, jwt: jwt, cache: cache}
 }
 
 func (s *UserService) Register(ctx context.Context, req dto.RegisterRequest) (dto.UserResponse, error) {
@@ -112,6 +114,7 @@ func (s *UserService) Update(ctx context.Context, userID uint, req dto.UpdateUse
 	if err := s.repo.Update(ctx, u); err != nil {
 		return dto.UserResponse{}, takenOr(err)
 	}
+	s.cache.Invalidate(ctx)
 	return s.respond(*u)
 }
 

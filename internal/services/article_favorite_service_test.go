@@ -20,7 +20,7 @@ func favoritesOf(pairs ...[2]uint) *fakeFavoriteRepo {
 
 func TestArticleService_ListFillsFavorites(t *testing.T) {
 	favs := favoritesOf([2]uint{minhID, 1}, [2]uint{annaID, 1}, [2]uint{annaID, 2})
-	res, err := services.NewArticleService(twoAuthorRepo(), &fakeFollowRepo{}, favs).List(context.Background(), minhID, services.ArticleQuery{Limit: 20})
+	res, err := services.NewArticleService(twoAuthorRepo(), &fakeFollowRepo{}, favs, nil).List(context.Background(), minhID, services.ArticleQuery{Limit: 20})
 	if err != nil {
 		t.Fatalf("List: %v", err)
 	}
@@ -42,7 +42,7 @@ func TestArticleService_ListFillsFavorites(t *testing.T) {
 
 func TestArticleService_ListGuestSkipsFavoritedQuery(t *testing.T) {
 	favs := favoritesOf([2]uint{minhID, 1})
-	res, err := services.NewArticleService(twoAuthorRepo(), &fakeFollowRepo{}, favs).List(context.Background(), 0, services.ArticleQuery{Limit: 20})
+	res, err := services.NewArticleService(twoAuthorRepo(), &fakeFollowRepo{}, favs, nil).List(context.Background(), 0, services.ArticleQuery{Limit: 20})
 	if err != nil {
 		t.Fatalf("List: %v", err)
 	}
@@ -64,7 +64,7 @@ func TestArticleService_ListGuestSkipsFavoritedQuery(t *testing.T) {
 
 func TestArticleService_ListPassesFavoritedFilter(t *testing.T) {
 	repo := &fakeArticleRepo{}
-	svc := services.NewArticleService(repo, &fakeFollowRepo{}, &fakeFavoriteRepo{})
+	svc := services.NewArticleService(repo, &fakeFollowRepo{}, &fakeFavoriteRepo{}, nil)
 	if _, err := svc.List(context.Background(), 0, services.ArticleQuery{Favorited: "jake", Tag: "go", Limit: 20}); err != nil {
 		t.Fatalf("List: %v", err)
 	}
@@ -82,7 +82,7 @@ func TestArticleService_ListPassesFavoritedFilter(t *testing.T) {
 
 func TestArticleService_GetFillsFavorites(t *testing.T) {
 	favs := favoritesOf([2]uint{minhID, 1}, [2]uint{annaID, 1})
-	svc := services.NewArticleService(twoAuthorRepo(), &fakeFollowRepo{}, favs)
+	svc := services.NewArticleService(twoAuthorRepo(), &fakeFollowRepo{}, favs, nil)
 	res, err := svc.Get(context.Background(), minhID, "cua-jake")
 	if err != nil {
 		t.Fatalf("Get: %v", err)
@@ -98,7 +98,7 @@ func TestArticleService_GetFillsFavorites(t *testing.T) {
 
 func TestArticleService_FavoriteUnfavorite(t *testing.T) {
 	favs := favoritesOf([2]uint{annaID, 1})
-	svc := services.NewArticleService(twoAuthorRepo(), &fakeFollowRepo{}, favs)
+	svc := services.NewArticleService(twoAuthorRepo(), &fakeFollowRepo{}, favs, nil)
 	ctx := context.Background()
 
 	res, err := svc.Favorite(ctx, minhID, "cua-jake")
@@ -130,7 +130,7 @@ func TestArticleService_FavoriteUnfavorite(t *testing.T) {
 
 func TestArticleService_FavoriteErrors(t *testing.T) {
 	favs := &fakeFavoriteRepo{}
-	svc := services.NewArticleService(twoAuthorRepo(), &fakeFollowRepo{}, favs)
+	svc := services.NewArticleService(twoAuthorRepo(), &fakeFollowRepo{}, favs, nil)
 	ctx := context.Background()
 
 	_, err := svc.Favorite(ctx, minhID, "khong-co")
@@ -142,7 +142,7 @@ func TestArticleService_FavoriteErrors(t *testing.T) {
 	}
 
 	boom := errors.New("db down")
-	svc = services.NewArticleService(twoAuthorRepo(), &fakeFollowRepo{}, &fakeFavoriteRepo{err: boom})
+	svc = services.NewArticleService(twoAuthorRepo(), &fakeFollowRepo{}, &fakeFavoriteRepo{err: boom}, nil)
 	if _, err := svc.Favorite(ctx, minhID, "cua-jake"); !errors.Is(err, boom) {
 		t.Errorf("Favorite: err = %v, muốn trả nguyên lỗi của FavoriteRepository", err)
 	}

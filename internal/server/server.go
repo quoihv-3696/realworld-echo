@@ -7,12 +7,13 @@ import (
 
 	"github.com/quoihv-3696/realworld-echo/internal/apperr"
 	"github.com/quoihv-3696/realworld-echo/internal/auth"
+	"github.com/quoihv-3696/realworld-echo/internal/cache"
 	"github.com/quoihv-3696/realworld-echo/internal/handlers"
 	"github.com/quoihv-3696/realworld-echo/internal/repository"
 	"github.com/quoihv-3696/realworld-echo/internal/services"
 )
 
-func New(db *gorm.DB, jwt *auth.JWT) *echo.Echo {
+func New(db *gorm.DB, jwt *auth.JWT, store *cache.Store) *echo.Echo {
 	e := echo.New()
 	e.HTTPErrorHandler = apperr.Handler
 	e.Use(middleware.RequestLogger(), middleware.Recover())
@@ -23,11 +24,14 @@ func New(db *gorm.DB, jwt *auth.JWT) *echo.Echo {
 	followRepo := repository.NewFollowRepository(db)
 	favoriteRepo := repository.NewFavoriteRepository(db)
 
-	tags := handlers.NewTagHandler(services.NewTagService(repository.NewTagRepository(db)))
-	articles := handlers.NewArticleHandler(services.NewArticleService(articleRepo, followRepo, favoriteRepo))
+	tags := handlers.NewTagHandler(services.NewTagService(repository.NewTagRepository(db), store))
+	articles := handlers.NewArticleHandler(services.NewArticleService(articleRepo, followRepo, favoriteRepo, store))
 	comments := handlers.NewCommentHandler(services.NewCommentService(articleRepo, commentRepo, followRepo))
-	users := handlers.NewUserHandler(services.NewUserService(userRepo, jwt))
+	users := handlers.NewUserHandler(services.NewUserService(userRepo, jwt, store))
 	profiles := handlers.NewProfileHandler(services.NewProfileService(userRepo, followRepo))
+
+	e.GET("/openapi.yml", handlers.OpenAPISpec)
+	e.GET("/docs", handlers.SwaggerUI)
 
 	api := e.Group("/api")
 	api.GET("/tags", tags.List)

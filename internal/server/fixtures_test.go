@@ -13,7 +13,7 @@ import (
 func newTestServer(t *testing.T) (*echo.Echo, *gorm.DB) {
 	t.Helper()
 	db := testutil.DB(t)
-	e := server.New(db, testutil.JWT(t))
+	e := server.New(db, testutil.JWT(t), nil)
 	e.Logger = testutil.Logger(t)
 	return e, db
 }

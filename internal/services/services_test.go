@@ -32,9 +32,11 @@ type fakeArticleRepo struct {
 	gotCreateTags []string
 	gotUpdateTags *[]string
 	deleted       []uint
+	listCalls     int
 }
 
 func (f *fakeArticleRepo) List(_ context.Context, filter repository.ArticleFilter) ([]models.Article, int64, error) {
+	f.listCalls++
 	f.gotFilter = filter
 	return f.articles, f.total, f.err
 }
@@ -180,7 +182,7 @@ func sampleArticle() models.Article {
 }
 
 func TestTagService_ListNilBecomesEmpty(t *testing.T) {
-	res, err := services.NewTagService(fakeTagRepo{}).List(context.Background())
+	res, err := services.NewTagService(fakeTagRepo{}, nil).List(context.Background())
 	if err != nil {
 		t.Fatalf("List: %v", err)
 	}
@@ -191,14 +193,14 @@ func TestTagService_ListNilBecomesEmpty(t *testing.T) {
 
 func TestTagService_ListPassesError(t *testing.T) {
 	boom := errors.New("db down")
-	if _, err := services.NewTagService(fakeTagRepo{err: boom}).List(context.Background()); !errors.Is(err, boom) {
+	if _, err := services.NewTagService(fakeTagRepo{err: boom}, nil).List(context.Background()); !errors.Is(err, boom) {
 		t.Errorf("err = %v, muốn trả nguyên lỗi của repo", err)
 	}
 }
 
 func TestArticleService_ListMapsAndUsesDefaultLimit(t *testing.T) {
 	repo := &fakeArticleRepo{articles: []models.Article{sampleArticle(), {Slug: "no-tags"}}, total: 42}
-	res, err := services.NewArticleService(repo, &fakeFollowRepo{}, &fakeFavoriteRepo{}).List(context.Background(), 0, services.ArticleQuery{Limit: services.DefaultLimit})
+	res, err := services.NewArticleService(repo, &fakeFollowRepo{}, &fakeFavoriteRepo{}, nil).List(context.Background(), 0, services.ArticleQuery{Limit: services.DefaultLimit})
 	if err != nil {
 		t.Fatalf("List: %v", err)
 	}
@@ -233,7 +235,7 @@ func TestArticleService_ListMapsAndUsesDefaultLimit(t *testing.T) {
 }
 
 func TestArticleService_ListEmpty(t *testing.T) {
-	res, err := services.NewArticleService(&fakeArticleRepo{}, &fakeFollowRepo{}, &fakeFavoriteRepo{}).List(context.Background(), 0, services.ArticleQuery{Limit: services.DefaultLimit})
+	res, err := services.NewArticleService(&fakeArticleRepo{}, &fakeFollowRepo{}, &fakeFavoriteRepo{}, nil).List(context.Background(), 0, services.ArticleQuery{Limit: services.DefaultLimit})
 	if err != nil {
 		t.Fatalf("List: %v", err)
 	}
@@ -243,7 +245,7 @@ func TestArticleService_ListEmpty(t *testing.T) {
 }
 
 func TestArticleService_Get(t *testing.T) {
-	res, err := services.NewArticleService(&fakeArticleRepo{articles: []models.Article{sampleArticle()}}, &fakeFollowRepo{}, &fakeFavoriteRepo{}).Get(context.Background(), 0, "s")
+	res, err := services.NewArticleService(&fakeArticleRepo{articles: []models.Article{sampleArticle()}}, &fakeFollowRepo{}, &fakeFavoriteRepo{}, nil).Get(context.Background(), 0, "s")
 	if err != nil {
 		t.Fatalf("Get: %v", err)
 	}
@@ -253,7 +255,7 @@ func TestArticleService_Get(t *testing.T) {
 }
 
 func TestArticleService_GetNotFound(t *testing.T) {
-	_, err := services.NewArticleService(&fakeArticleRepo{}, &fakeFollowRepo{}, &fakeFavoriteRepo{}).Get(context.Background(), 0, "khong-co")
+	_, err := services.NewArticleService(&fakeArticleRepo{}, &fakeFollowRepo{}, &fakeFavoriteRepo{}, nil).Get(context.Background(), 0, "khong-co")
 	var appErr *apperr.Error
 	if !errors.As(err, &appErr) || appErr.Status != http.StatusNotFound || appErr.Fields["article"][0] != "not found" {
 		t.Fatalf("err = %v, muốn apperr.NotFound(\"article\")", err)
@@ -262,7 +264,7 @@ func TestArticleService_GetNotFound(t *testing.T) {
 
 func TestArticleService_GetPassesOtherErrors(t *testing.T) {
 	boom := errors.New("db down")
-	_, err := services.NewArticleService(&fakeArticleRepo{err: boom}, &fakeFollowRepo{}, &fakeFavoriteRepo{}).Get(context.Background(), 0, "x")
+	_, err := services.NewArticleService(&fakeArticleRepo{err: boom}, &fakeFollowRepo{}, &fakeFavoriteRepo{}, nil).Get(context.Background(), 0, "x")
 	if !errors.Is(err, boom) {
 		t.Errorf("err = %v, muốn trả nguyên lỗi khác ErrNotFound", err)
 	}
