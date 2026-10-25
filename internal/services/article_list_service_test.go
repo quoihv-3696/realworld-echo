@@ -37,7 +37,7 @@ func TestArticleService_ListPassesFilter(t *testing.T) {
 	if _, err := svc.List(context.Background(), 0, services.ArticleQuery{Tag: "go", Author: "jake", Limit: 5, Offset: 10}); err != nil {
 		t.Fatalf("List: %v", err)
 	}
-	want := repository.ArticleFilter{Tag: "go", Author: "jake", Limit: 5, Offset: 10}
+	want := repository.ArticleFilter{Tag: "go", Author: "jake", Sort: repository.SortNewest, Limit: 5, Offset: 10}
 	if repo.gotFilter != want {
 		t.Errorf("filter gửi repo = %+v, muốn %+v", repo.gotFilter, want)
 	}

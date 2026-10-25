@@ -114,6 +114,7 @@ func articleQuery(c *echo.Context) (services.ArticleQuery, error) {
 		Tag:       c.QueryParam("tag"),
 		Author:    c.QueryParam("author"),
 		Favorited: c.QueryParam("favorited"),
+		Sort:      c.QueryParam("sort"),
 		Limit:     limit,
 		Offset:    offset,
 	}, nil

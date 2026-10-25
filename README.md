@@ -25,6 +25,7 @@ go run ./cmd/api              # http://localhost:8080
 
 Lần chạy đầu, server tự tạo bảng và thêm dữ liệu mẫu: user `jake`, `anna`, `minh` (email `<tên>@example.com`, mật khẩu `password123`) cùng 5 bài viết.
 
+- Ngoài spec RealWorld, `GET /api/articles` nhận thêm `?sort=newest|oldest|popular` (mặc định `newest`; `popular` = nhiều lượt thích trước; giá trị khác → 422). Feed bỏ qua `sort`.
 - Swagger UI: http://localhost:8080/docs ("Try it out" gửi request thẳng tới server này; giao diện tải từ CDN jsDelivr nên cần mạng)
 - Đặc tả OpenAPI: http://localhost:8080/openapi.yml
 
@@ -50,6 +51,14 @@ scripts/check-day.sh 6       # 13 file hurl chính thức vào server đang ch�
 ```
 
 `check-day.sh` sinh `uid` mới cho mỗi lần chạy, nên chạy lại bao nhiêu lần cũng được, không cần xóa DB.
+
+Ba tầng test:
+
+| Tầng | Cách | Ở đâu |
+|---|---|---|
+| Unit | service với repository giả; handler và middleware gọi thẳng qua `e.NewContext` (không router; riêng test `RequireOwner` dùng DB test) | `internal/services/*_test.go`, `internal/handlers/*_test.go` |
+| Tích hợp | request `httptest` đi qua router, middleware, error handler, DB test thật | `internal/server/*_test.go`, `internal/repository/*_test.go` |
+| Đầu-cuối | 13 file hurl chính thức vào server đang chạy | `tests/hurl/` |
 
 ## Cấu trúc
 
@@ -78,9 +87,9 @@ Lớp trên chỉ biết lớp ngay dưới: handler không biết GORM, service
 | 2. Handler, binding | `c.Bind`, `c.JSON`, Group route; `GET` articles, article, tags | `internal/handlers`, `internal/server` |
 | 3. Quan hệ, DTO | BelongsTo, HasMany, Many2Many, Preload, DTO ẩn password; comments, profile | `internal/models`, `internal/dto`, `internal/repository` |
 | 4. JWT | bcrypt, middleware JWT, đăng ký, đăng nhập, user hiện tại | `internal/auth`, `internal/services/user_service.go` |
-| 5. Middleware, lọc, phân trang | middleware quyền tác giả, `tag`/`author`/`favorited`, `limit`/`offset`, feed | `internal/handlers/article_owner.go`, `internal/repository/article_repository.go` |
+| 5. Middleware, lọc, phân trang | middleware quyền tác giả, `tag`/`author`/`favorited`, sắp xếp `sort` (whitelist), `limit`/`offset`, feed | `internal/handlers/article_owner.go`, `internal/repository/article_repository.go` |
 | 6. Social | follow, favorite, chỉ chính chủ xóa bình luận | `follow_repository.go`, `favorite_repository.go`, `comment_service.go` |
-| 7. Test, tối ưu | test handler bằng `httptest`, Redis cho tags và danh sách bài, `.env` | `internal/server/*_test.go`, `internal/cache`, `internal/config` |
+| 7. Test, tối ưu | unit test handler kiểu Echo Testing (`e.NewContext`), test qua `httptest`, Redis cho tags và danh sách bài, `.env` | `internal/handlers/*_test.go`, `internal/server/*_test.go`, `internal/cache`, `internal/config` |
 | 8. Tổng kết | test cả luồng, Swagger, tránh N+1 | `TestFullFlow_RegisterToFeed`, `/docs`, `testutil.QueryCounter` |
 
 ## Ghi chú thiết kế

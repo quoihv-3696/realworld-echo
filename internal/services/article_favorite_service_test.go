@@ -68,7 +68,7 @@ func TestArticleService_ListPassesFavoritedFilter(t *testing.T) {
 	if _, err := svc.List(context.Background(), 0, services.ArticleQuery{Favorited: "jake", Tag: "go", Limit: 20}); err != nil {
 		t.Fatalf("List: %v", err)
 	}
-	want := repository.ArticleFilter{FavoritedBy: "jake", Tag: "go", Limit: 20}
+	want := repository.ArticleFilter{FavoritedBy: "jake", Tag: "go", Sort: repository.SortNewest, Limit: 20}
 	if repo.gotFilter != want {
 		t.Errorf("filter gửi repo = %+v, muốn %+v", repo.gotFilter, want)
 	}

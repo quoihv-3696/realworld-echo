@@ -63,7 +63,7 @@ func (j *JWT) middleware(optional bool) echo.MiddlewareFunc {
 			if err != nil || id == 0 {
 				return apperr.TokenInvalid()
 			}
-			c.Set(userIDKey, uint(id))
+			SetUserID(c, uint(id))
 			return nil
 		},
 		ErrorHandler: func(c *echo.Context, err error) error {
@@ -77,6 +77,10 @@ func (j *JWT) middleware(optional bool) echo.MiddlewareFunc {
 		},
 		ContinueOnIgnoredError: optional,
 	})
+}
+
+func SetUserID(c *echo.Context, id uint) {
+	c.Set(userIDKey, id)
 }
 
 func UserID(c *echo.Context) (uint, bool) {

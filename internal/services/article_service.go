@@ -30,8 +30,13 @@ func (s *ArticleService) List(ctx context.Context, viewerID uint, q ArticleQuery
 	if err := validatePage(q); err != nil {
 		return dto.MultipleArticlesResponse{}, err
 	}
+	sort, err := normalizeSort(q.Sort)
+	if err != nil {
+		return dto.MultipleArticlesResponse{}, err
+	}
+	q.Sort = sort
 	f := repository.ArticleFilter{
-		Tag: q.Tag, Author: q.Author, FavoritedBy: q.Favorited, Limit: q.Limit, Offset: q.Offset,
+		Tag: q.Tag, Author: q.Author, FavoritedBy: q.Favorited, Sort: q.Sort, Limit: q.Limit, Offset: q.Offset,
 	}
 	if viewerID != 0 {
 		return s.listArticles(ctx, viewerID, f)

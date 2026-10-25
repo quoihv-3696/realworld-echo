@@ -17,6 +17,26 @@ type ArticleFilter struct {
 	Author      string
 	FavoritedBy string
 	FollowedBy  uint
+	Sort        string
+}
+
+const (
+	SortNewest  = "newest"
+	SortOldest  = "oldest"
+	SortPopular = "popular"
+)
+
+var articleOrders = map[string]string{
+	SortNewest:  "articles.created_at DESC, articles.id DESC",
+	SortOldest:  "articles.created_at ASC, articles.id ASC",
+	SortPopular: "(SELECT COUNT(*) FROM favorites WHERE favorites.article_id = articles.id) DESC, articles.created_at DESC, articles.id DESC",
+}
+
+func orderFor(sort string) string {
+	if o, ok := articleOrders[sort]; ok {
+		return o
+	}
+	return articleOrders[SortNewest]
 }
 
 type ArticleRepository interface {
@@ -47,7 +67,7 @@ func (r *articleRepository) List(ctx context.Context, f ArticleFilter) ([]models
 	err := db.Scopes(r.filter(f)).
 		Preload("Author").
 		Preload("Tags").
-		Order("created_at DESC, id DESC").
+		Order(orderFor(f.Sort)).
 		Limit(f.Limit).
 		Offset(f.Offset).
 		Find(&articles).Error
